@@ -18,6 +18,8 @@ interface BarcodeScannerProps {
   onDetected: (text: string) => void;
   /** Keep the viewfinder open after a successful decode (back-to-back scanning). */
   continuous?: boolean;
+  /** Ignore decodes while another modal (e.g. quantity prompt) is on top. */
+  paused?: boolean;
   /** Optional status text overlaid at the bottom (e.g. running cart total). */
   overlayLabel?: string;
 }
@@ -30,6 +32,7 @@ export function BarcodeScanner({
   onOpenChange,
   onDetected,
   continuous = false,
+  paused = false,
   overlayLabel,
 }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -38,6 +41,8 @@ export function BarcodeScanner({
   const lastDecodeRef = useRef<{ text: string; at: number }>({ text: "", at: 0 });
   const onDetectedRef = useRef(onDetected);
   onDetectedRef.current = onDetected;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   const [state, setState] = useState<ScannerState>("starting");
   const [errorMsg, setErrorMsg] = useState("");
@@ -83,6 +88,8 @@ export function BarcodeScanner({
         video,
         (result) => {
           if (!result) return;
+          // A modal is stacked on top — drop decodes instead of stacking prompts.
+          if (pausedRef.current) return;
           const text = result.getText().trim();
           if (!text) return;
           const now = Date.now();

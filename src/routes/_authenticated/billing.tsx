@@ -49,6 +49,7 @@ import {
   Loader2,
   AlertCircle,
   ScanLine,
+  ChevronDown,
 } from "lucide-react";
 import {
   formatINR,
@@ -58,6 +59,7 @@ import {
   type PaymentMethod,
 } from "@/lib/inventory-types";
 import { useProfile } from "@/hooks/use-profile";
+import { cn } from "@/lib/utils";
 import { BarcodeScanner } from "@/components/barcode-scanner";
 import { toast } from "sonner";
 
@@ -302,6 +304,12 @@ function BillingPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // Quantity prompt shown after a scan/type resolves to a product.
+  const [scanPrompt, setScanPrompt] = useState<{ product: Product; code: string } | null>(null);
+  const [scanQty, setScanQty] = useState("1");
+  const qtyRef = useRef<HTMLInputElement>(null);
+  // Mobile-only: cart body collapses so the product list stays within reach.
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const hasCamera = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
   // Payment modal state
@@ -325,6 +333,20 @@ function BillingPage() {
       searchRef.current?.focus();
     }
   }, []);
+
+  // Focus the quantity field as soon as a scan resolves to a product.
+  useEffect(() => {
+    if (scanPrompt) {
+      const id = window.setTimeout(() => qtyRef.current?.focus(), 60);
+      return () => window.clearTimeout(id);
+    }
+  }, [scanPrompt]);
+
+  // Reveal the cart when something lands in it; collapse it once it's emptied so
+  // the product list takes over the screen again.
+  useEffect(() => {
+    setMobileCartOpen(cart.length > 0);
+  }, [cart.length]);
 
   const products = useQuery({
     queryKey: ["products"],
@@ -483,21 +505,27 @@ function BillingPage() {
     if (showHistory) loadHistory();
   }, [showHistory]);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, qty = 1): boolean => {
+    const existing = cart.find((i) => i.product.id === product.id);
+    const current = existing?.quantity ?? 0;
+    const max = product.quantity;
+    if (current >= max) {
+      toast.error(`All ${max} in stock are already in the cart`);
+      return false;
+    }
+    const add = Math.min(qty, max - current);
+    if (add < qty) toast.error(`Only ${max} in stock — added ${add}`);
     setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        if (existing.quantity >= product.quantity) {
-          toast.error(`Only ${product.quantity} in stock`);
-          return prev;
-        }
+      const ex = prev.find((i) => i.product.id === product.id);
+      if (ex) {
         return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i,
+          i.product.id === product.id ? { ...i, quantity: i.quantity + add } : i,
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: add }];
     });
     setSearch("");
+    return true;
   };
 
   // Exact, case-insensitive match on Product ID (barcode) first, then SKU.
@@ -514,7 +542,8 @@ function BillingPage() {
     window.setTimeout(() => setHighlightId((cur) => (cur === productId ? null : cur)), 800);
   };
 
-  // Shared by camera scan + manual item-ID entry.
+  // Shared by camera scan + manual SKU/Product-ID entry: resolves the code, then
+  // asks how many before touching the cart.
   const handleCodeDetected = (code: string) => {
     if (!products.data) {
       toast.info("Products are still loading — try again in a moment");
@@ -529,9 +558,35 @@ function BillingPage() {
       toast.error(`${product.name} is out of stock`);
       return;
     }
-    addToCart(product); // re-scan increments qty; stock cap enforced inside
-    flashAdded(product.id);
+    setScanPrompt({ product, code });
+    setScanQty("1");
   };
+
+  const confirmScanQty = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scanPrompt) return;
+    const n = Number(scanQty);
+    if (scanQty.trim() === "" || !Number.isInteger(n) || n < 1) {
+      toast.error("Enter a whole number greater than 0");
+      qtyRef.current?.focus();
+      return;
+    }
+    if (addToCart(scanPrompt.product, n)) flashAdded(scanPrompt.product.id);
+    setScanPrompt(null);
+  };
+
+  const stepScanQty = (delta: number) => {
+    setScanQty((prev) => {
+      const cur = Number(prev);
+      const base = Number.isFinite(cur) && cur > 0 ? Math.floor(cur) : 0;
+      const max = scanPrompt ? Math.max(scanPrompt.product.quantity, 1) : Number.MAX_SAFE_INTEGER;
+      return String(Math.min(Math.max(base + delta, 1), max));
+    });
+  };
+
+  const scanInCart = scanPrompt
+    ? (cart.find((i) => i.product.id === scanPrompt.product.id)?.quantity ?? 0)
+    : 0;
 
   const submitManualCode = (e: React.FormEvent) => {
     e.preventDefault();
@@ -616,8 +671,8 @@ function BillingPage() {
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_380px] lg:h-[calc(100dvh-9rem)]">
-          {/* Left: Product selection + Cart */}
-          <Card className="flex min-h-0 flex-col overflow-hidden">
+          {/* On mobile the Cart leads (order-1); on desktop it returns to the right rail. */}
+          <Card className="order-2 flex min-h-0 flex-col overflow-hidden lg:order-1">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2">
                 <Search className="h-4 w-4" /> Products
@@ -713,14 +768,35 @@ function BillingPage() {
             </CardContent>
           </Card>
 
-          {/* Right: Cart + Customer + Payment */}
-          <Card className="flex min-h-0 flex-col overflow-hidden">
+          {/* Cart + Customer + Payment — first on mobile */}
+          <Card className="order-1 flex min-h-0 flex-col overflow-hidden lg:order-2">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2">
-                <Receipt className="h-4 w-4" /> Cart ({cart.length})
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4" /> Cart ({cart.length})
+                </CardTitle>
+                <span className="ml-auto font-semibold tabular-nums">{formatINR(total)}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0 lg:hidden"
+                  aria-expanded={mobileCartOpen}
+                  aria-label={mobileCartOpen ? "Collapse cart" : "Expand cart"}
+                  onClick={() => setMobileCartOpen((v) => !v)}
+                >
+                  <ChevronDown
+                    className={cn("h-4 w-4 transition-transform", mobileCartOpen && "rotate-180")}
+                  />
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col overflow-hidden p-0">
+            <CardContent
+              className={cn(
+                "flex-1 flex-col overflow-hidden p-0 lg:flex",
+                mobileCartOpen ? "flex" : "hidden",
+              )}
+            >
               {/* Cart items */}
               <div className="min-h-0 flex-1 overflow-y-auto border-b p-3">
                 {cart.length === 0 ? (
@@ -1115,8 +1191,118 @@ function BillingPage() {
           onOpenChange={setScannerOpen}
           onDetected={handleCodeDetected}
           continuous
+          paused={!!scanPrompt}
           overlayLabel={`${cart.reduce((n, i) => n + i.quantity, 0)} items · ${formatINR(total)}`}
         />
+      )}
+
+      {/* Quantity prompt — shown after each scan resolves to a product */}
+      {scanPrompt && (
+        <Dialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setScanPrompt(null);
+          }}
+        >
+          <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ScanLine className="h-4 w-4" /> How many?
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={confirmScanQty} className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                <div className="font-medium truncate">{scanPrompt.product.name}</div>
+                <div className="font-mono text-xs text-muted-foreground truncate">
+                  {scanPrompt.product.sku}
+                  {scanPrompt.product.barcode ? ` · ${scanPrompt.product.barcode}` : ""}
+                </div>
+                <div className="flex justify-between pt-1 text-xs text-muted-foreground">
+                  <span>
+                    {formatINR(scanPrompt.product.unit_price)} each · {scanPrompt.product.quantity}{" "}
+                    in stock
+                  </span>
+                </div>
+                {scanInCart > 0 && (
+                  <div className="text-xs text-muted-foreground">Already in cart: {scanInCart}</div>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="scan-qty">Quantity</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-11 w-11 shrink-0"
+                    onClick={() => stepScanQty(-1)}
+                    aria-label="Decrease quantity"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    id="scan-qty"
+                    ref={qtyRef}
+                    inputMode="numeric"
+                    className="h-11 text-center text-lg font-mono"
+                    value={scanQty}
+                    onChange={(e) => setScanQty(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-11 w-11 shrink-0"
+                    onClick={() => stepScanQty(1)}
+                    aria-label="Increase quantity"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex gap-1 pt-1">
+                  {[2, 5, 10].map((n) => (
+                    <Button
+                      key={n}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setScanQty(String(n))}
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() =>
+                      setScanQty(String(Math.max(1, scanPrompt.product.quantity - scanInCart)))
+                    }
+                  >
+                    All
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="sm:flex-1"
+                  onClick={() => setScanPrompt(null)}
+                >
+                  Skip
+                </Button>
+                <Button type="submit" className="sm:flex-1">
+                  Add to cart
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Payment Modal */}
