@@ -28,7 +28,6 @@ import {
 import {
   LayoutDashboard,
   Package,
-  Tags,
   Truck,
   ArrowLeftRight,
   LogOut,
@@ -36,6 +35,7 @@ import {
   Users,
   Receipt,
   MoreHorizontal,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -79,14 +79,29 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthedLayout,
 });
 
-const navItems = [
-  { title: "Billing", short: "Billing", url: "/billing", icon: Receipt },
-  { title: "Dashboard", short: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Products", short: "Products", url: "/products", icon: Package },
-  { title: "Categories", short: "Tags", url: "/categories", icon: Tags },
-  { title: "Suppliers", short: "Suppliers", url: "/suppliers", icon: Truck },
-  { title: "Transactions", short: "Activity", url: "/transactions", icon: ArrowLeftRight },
-] as const;
+type NavItem = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  /** Hidden from staff-only accounts (no Dashboard, no team management). */
+  orgAdminOnly?: boolean;
+};
+
+const navItems: NavItem[] = [
+  { title: "Billing", url: "/billing", icon: Receipt },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, orgAdminOnly: true },
+  { title: "Products", url: "/products", icon: Package },
+  { title: "Team members", url: "/members", icon: Users, orgAdminOnly: true },
+  { title: "Suppliers", url: "/suppliers", icon: Truck },
+  { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
+];
+
+/** Off-menu routes still need a header title when reached directly. */
+const pageTitles: { title: string; url: string }[] = [
+  ...navItems.map(({ title, url }) => ({ title, url })),
+  { title: "Categories", url: "/categories" },
+  { title: "Admin", url: "/admin" },
+];
 
 /** How many destinations fit comfortably in a phone-width tab bar. */
 const MAX_MOBILE_TABS = 4;
@@ -169,9 +184,9 @@ function LayoutShell() {
     }
   }, [rolesResolved, isStaffOnly, pathname, navigate]);
 
-  // Hide Dashboard from staff-only users.
+  // Hide Dashboard and Team members from staff-only users.
   const visibleNavItems = isStaffOnly
-    ? navItems.filter((item) => item.url !== "/dashboard")
+    ? navItems.filter((item) => !item.orgAdminOnly)
     : [...navItems];
 
   // Admins get Dashboard as the top menu item; everyone else keeps Billing first.
@@ -226,16 +241,6 @@ function LayoutShell() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
-                {isOrgAdmin && !isSuperAdmin && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/members"}>
-                      <Link to="/members" onClick={closeOnMobile}>
-                        <Users className="h-4 w-4" />
-                        <span>Team members</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
                 {isSuperAdmin && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === "/admin"}>
@@ -264,7 +269,7 @@ function LayoutShell() {
         <header className="h-14 flex items-center gap-2 border-b bg-background px-4 sticky top-0 z-10">
           <SidebarTrigger aria-label="Open navigation menu" />
           <h1 className="font-semibold capitalize truncate">
-            {navItems.find((n) => n.url === pathname)?.title ?? "StockLine"}
+            {pageTitles.find((n) => n.url === pathname)?.title ?? "StockLine"}
           </h1>
         </header>
         <main className="flex-1 p-3 pb-safe-tab sm:p-4 lg:p-6">
@@ -286,13 +291,14 @@ function LayoutShell() {
                 <li key={item.url}>
                   <Link
                     to={item.url}
+                    aria-label={item.title}
                     aria-current={active ? "page" : undefined}
-                    className={`flex h-14 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium transition-colors ${
+                    title={item.title}
+                    className={`flex h-14 items-center justify-center transition-colors ${
                       active ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
-                    <item.icon className="h-5 w-5" />
-                    <span className="w-full truncate text-center">{item.short}</span>
+                    <item.icon className="h-6 w-6" />
                   </Link>
                 </li>
               );
@@ -302,10 +308,10 @@ function LayoutShell() {
                 <button
                   type="button"
                   onClick={() => setOpenMobile(true)}
-                  className="flex h-14 w-full flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium text-muted-foreground transition-colors"
+                  aria-label="More destinations"
+                  className="flex h-14 w-full items-center justify-center text-muted-foreground transition-colors"
                 >
-                  <MoreHorizontal className="h-5 w-5" />
-                  <span className="w-full truncate text-center">More</span>
+                  <MoreHorizontal className="h-6 w-6" />
                 </button>
               </li>
             )}

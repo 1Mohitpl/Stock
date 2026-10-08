@@ -1226,9 +1226,10 @@ function ProductsPage() {
       <div className="fixed right-4 z-50 fab-safe sm:hidden">
         <Button
           onClick={() => setQuickTxnOpen(true)}
-          className="shadow-lg rounded-full h-14 px-4 gap-2"
+          aria-label="Quick transaction"
+          className="h-12 gap-1.5 rounded-full px-4 shadow-lg"
         >
-          <ArrowLeftRight className="h-5 w-5" /> Quick transaction
+          <ArrowLeftRight className="h-4 w-4" /> Quick transaction
         </Button>
       </div>
 
