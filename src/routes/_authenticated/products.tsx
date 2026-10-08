@@ -815,7 +815,9 @@ function ProductsPage() {
                   <DialogTitle>{editing ? "Edit product" : "New product"}</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1 col-span-2">
+                  {/* sm:col-span-2 — a bare col-span-2 in a 1-col grid creates an
+                      implicit second column and collapses the fields. */}
+                  <div className="space-y-1 sm:col-span-2">
                     <Label htmlFor="p-name">Name *</Label>
                     <Input
                       id="p-name"
@@ -1003,7 +1005,7 @@ function ProductsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="space-y-1 col-span-2">
+                  <div className="space-y-1 sm:col-span-2">
                     <Label>Description</Label>
                     <Textarea
                       value={form.description}
