@@ -423,12 +423,21 @@ function ProductsPage() {
         await writeOnce(payload);
       } catch (error) {
         if (isMissingBarcodeColumn(error)) {
-          // Column not migrated yet — save everything except the Product ID.
-          await writeOnce(withoutBarcode(payload));
-          toast.warning(
-            "Saved without Product ID — apply the barcode migration, then edit to add it.",
+          // Never silently drop a Product ID the user typed — surface it instead.
+          if (!payload.barcode) {
+            await writeOnce(withoutBarcode(payload));
+            return;
+          }
+          setErrors((p) => ({
+            ...p,
+            barcode:
+              "Product ID can't be saved yet — the barcode column is missing from the database.",
+          }));
+          barcodeRef.current?.focus();
+          throw new Error(
+            "Database is missing the products.barcode column, so the Product ID was not saved. " +
+              "Apply the migration supabase/migrations/20261008000000_add_products_barcode.sql, then retry.",
           );
-          return;
         }
         throw error;
       }
@@ -557,10 +566,11 @@ function ProductsPage() {
           const retry = payload.map(withoutBarcode);
           const { error: retryError } = await supabase.from("products").insert(retry);
           if (retryError) throw new Error(retryError.message);
-          toast.warning(
-            "Imported without Product IDs — apply the barcode migration, then re-import that column.",
+          throw new Error(
+            `Imported ${payload.length} product(s), but Product IDs were NOT saved: ` +
+              "the database is missing products.barcode. Apply the migration " +
+              "supabase/migrations/20261008000000_add_products_barcode.sql, then set Product IDs.",
           );
-          return payload.length;
         }
         throw new Error(error.message);
       }
