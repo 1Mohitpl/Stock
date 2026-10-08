@@ -1369,7 +1369,7 @@ function ProductsPage() {
               setQuickTxnOpen(false);
               navigate({ to: "/transactions" });
             }}
-            className="w-full border-t pt-3 text-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="w-full border-t pt-3 pb-1 text-center text-xs font-normal text-muted-foreground transition-colors hover:text-foreground"
           >
             View transaction history
           </button>
