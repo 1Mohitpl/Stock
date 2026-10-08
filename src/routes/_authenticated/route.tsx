@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { prefetchSection } from "@/lib/prefetch";
 import {
   Sidebar,
@@ -33,8 +33,18 @@ import {
   Shield,
   Users,
   IndianRupee,
+  Tags,
+  User,
   type LucideIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useOrgStatusNotifier } from "@/hooks/use-org-status-notifier";
@@ -106,6 +116,83 @@ function AuthedLayout() {
     <SidebarProvider>
       <LayoutShell />
     </SidebarProvider>
+  );
+}
+
+function AccountMenu() {
+  const { user } = Route.useRouteContext();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "super_admin")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setIsSuperAdmin(!!data);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const label =
+    (user?.user_metadata as { full_name?: string } | undefined)?.full_name || user?.email || "";
+
+  const go = (to: string) => {
+    setOpen(false);
+    navigate({ to });
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Account menu"
+          className="ml-auto h-10 w-10 shrink-0 lg:hidden"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold uppercase text-primary">
+            {label.slice(0, 1) || <User className="h-4 w-4" />}
+          </span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
+          {label}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => go("/categories")}>
+          <Tags className="h-4 w-4" />
+          Categories
+        </DropdownMenuItem>
+        {isSuperAdmin && (
+          <DropdownMenuItem onSelect={() => go("/admin")}>
+            <Shield className="h-4 w-4" />
+            Admin
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={async () => {
+            setOpen(false);
+            await supabase.auth.signOut();
+            toast.success("Signed out");
+            navigate({ to: "/auth", search: { invite: undefined }, replace: true });
+          }}
+        >
+          <LogOut className="h-4 w-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -258,10 +345,11 @@ function LayoutShell() {
       </Sidebar>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-14 flex items-center gap-2 border-b bg-background px-4 sticky top-0 z-10">
-          <SidebarTrigger aria-label="Open navigation menu" />
+          <SidebarTrigger aria-label="Open navigation menu" className="hidden lg:inline-flex" />
           <h1 className="font-semibold capitalize truncate">
             {pageTitles.find((n) => n.url === pathname)?.title ?? "StockLine"}
           </h1>
+          <AccountMenu />
         </header>
         <main className="flex-1 p-3 pb-safe-tab sm:p-4 lg:p-6">
           <Outlet />
