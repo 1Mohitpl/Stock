@@ -3,6 +3,7 @@ import type { Category, Supplier } from "@/lib/inventory-types";
 export const PRODUCT_CSV_TEMPLATE_HEADERS = [
   "name",
   "sku",
+  "barcode",
   "category",
   "supplier",
   "unit_price",
@@ -17,6 +18,7 @@ export function buildProductTemplate(): string {
     [
       "Sample Soap",
       "SOAP-001",
+      "890100001001",
       "Personal Care",
       "Acme Supplies",
       "49.99",
@@ -24,7 +26,7 @@ export function buildProductTemplate(): string {
       "10",
       "Rose fragrance 100g",
     ].join(","),
-    ["Sample Chips", "CHIPS-001", "Snacks", "", "20", "50", "5", ""].join(","),
+    ["Sample Chips", "CHIPS-001", "", "Snacks", "", "20", "50", "5", ""].join(","),
   ].join("\n");
 }
 
@@ -69,6 +71,7 @@ export function parseCsvRows(text: string): string[][] {
 export type ParsedProduct = {
   name: string;
   sku: string;
+  barcode: string | null;
   category_name: string | null;
   supplier_name: string | null;
   unit_price: number;
@@ -85,12 +88,14 @@ export function parseProductsCsv(
     categories: Category[];
     suppliers: Supplier[];
     existingSkus: Set<string>; // lowercase
+    existingBarcodes?: Set<string>; // lowercase, optional for backwards compat
   },
 ): { items: ParsedProduct[]; errors: CsvRowError[]; totalDataRows: number } {
   const rows = parseCsvRows(text);
   const errors: CsvRowError[] = [];
   const items: ParsedProduct[] = [];
   const seenSkus = new Set<string>();
+  const seenBarcodes = new Set<string>();
 
   if (rows.length === 0)
     return { items, errors: [{ row: 0, message: "File is empty" }], totalDataRows: 0 };
@@ -99,6 +104,15 @@ export function parseProductsCsv(
   const idx = (...names: string[]) => headers.findIndex((h) => names.includes(h));
   const cName = idx("name", "product name");
   const cSku = idx("sku", "code");
+  const cBarcode = idx(
+    "barcode",
+    "product id",
+    "product_id",
+    "productid",
+    "item id",
+    "item_id",
+    "barcode id",
+  );
   const cCat = idx("category", "category name");
   const cSup = idx("supplier", "supplier name");
   const cPrice = idx("unit_price", "price", "mrp");
@@ -119,6 +133,7 @@ export function parseProductsCsv(
     const get = (ci: number) => (ci >= 0 && ci < cells.length ? cells[ci].trim() : "");
     const name = get(cName);
     const sku = get(cSku).toUpperCase();
+    const barcode = cBarcode >= 0 ? get(cBarcode) : "";
     const priceStr = get(cPrice);
     const qtyStr = get(cQty);
     const threshStr = get(cThresh);
@@ -132,6 +147,20 @@ export function parseProductsCsv(
       return errors.push({ row: rowNo, message: `SKU "${sku}" already exists` });
     if (seenSkus.has(skuKey))
       return errors.push({ row: rowNo, message: `Duplicate SKU "${sku}" in file` });
+
+    let barcodeNorm: string | null = barcode ? barcode.trim() : null;
+    if (barcodeNorm === "") barcodeNorm = null;
+    if (barcodeNorm) {
+      const bcKey = barcodeNorm.toLowerCase();
+      if (opts.existingBarcodes?.has(bcKey))
+        return errors.push({ row: rowNo, message: `Product ID "${barcodeNorm}" already exists` });
+      if (seenBarcodes.has(bcKey))
+        return errors.push({
+          row: rowNo,
+          message: `Duplicate Product ID "${barcodeNorm}" in file`,
+        });
+      seenBarcodes.add(bcKey);
+    }
 
     const unit_price = Number(priceStr);
     if (priceStr === "" || Number.isNaN(unit_price) || unit_price <= 0)
@@ -154,6 +183,7 @@ export function parseProductsCsv(
     items.push({
       name,
       sku,
+      barcode: barcodeNorm,
       category_name: catName || null,
       supplier_name: supName || null,
       unit_price,

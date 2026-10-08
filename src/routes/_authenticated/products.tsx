@@ -81,6 +81,7 @@ export const Route = createFileRoute("/_authenticated/products")({
 type Form = {
   name: string;
   sku: string;
+  barcode: string;
   category_id: string;
   supplier_id: string;
   unit_price: string;
@@ -89,11 +90,12 @@ type Form = {
   description: string;
 };
 type FieldErrors = Partial<
-  Record<"name" | "sku" | "unit_price" | "quantity" | "reorder_threshold", string>
+  Record<"name" | "sku" | "barcode" | "unit_price" | "quantity" | "reorder_threshold", string>
 >;
 const emptyForm: Form = {
   name: "",
   sku: "",
+  barcode: "",
   category_id: "",
   supplier_id: "",
   unit_price: "0",
@@ -114,6 +116,7 @@ function ProductsPage() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const nameRef = useRef<HTMLInputElement>(null);
   const skuRef = useRef<HTMLInputElement>(null);
+  const barcodeRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const thresholdRef = useRef<HTMLInputElement>(null);
@@ -268,6 +271,13 @@ function ProductsPage() {
       );
       if (dup) e.sku = "SKU must be unique";
     }
+    const barcode = f.barcode.trim();
+    if (barcode) {
+      const dupBarcode = (products.data ?? []).some(
+        (p) => (p.barcode ?? "").toLowerCase() === barcode.toLowerCase() && p.id !== editing?.id,
+      );
+      if (dupBarcode) e.barcode = "Product ID must be unique";
+    }
     const price = Number(f.unit_price);
     if (f.unit_price === "" || Number.isNaN(price) || price <= 0)
       e.unit_price = "Enter a price greater than 0";
@@ -308,7 +318,12 @@ function ProductsPage() {
   const filtered = (products.data ?? []).filter((p) => {
     if (search) {
       const q = search.toLowerCase();
-      if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+      if (
+        !p.name.toLowerCase().includes(q) &&
+        !p.sku.toLowerCase().includes(q) &&
+        !(p.barcode ?? "").toLowerCase().includes(q)
+      )
+        return false;
     }
     if (catFilter !== "all" && p.category_id !== catFilter) return false;
     if (statusFilter !== "all" && stockStatus(p) !== statusFilter) return false;
@@ -323,6 +338,7 @@ function ProductsPage() {
         const order: (keyof FieldErrors)[] = [
           "name",
           "sku",
+          "barcode",
           "unit_price",
           "quantity",
           "reorder_threshold",
@@ -330,6 +346,7 @@ function ProductsPage() {
         const refs: Record<keyof FieldErrors, React.RefObject<HTMLInputElement | null>> = {
           name: nameRef,
           sku: skuRef,
+          barcode: barcodeRef,
           unit_price: priceRef,
           quantity: qtyRef,
           reorder_threshold: thresholdRef,
@@ -344,6 +361,7 @@ function ProductsPage() {
       const payload = {
         name: form.name.trim(),
         sku: form.sku.trim(),
+        barcode: form.barcode.trim() || null,
         category_id: form.category_id || null,
         supplier_id: form.supplier_id || null,
         unit_price,
@@ -355,8 +373,13 @@ function ProductsPage() {
         const { error } = await supabase.from("products").update(payload).eq("id", editing.id);
         if (error) {
           if (error.code === "23505") {
-            setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
-            skuRef.current?.focus();
+            if (error.message.includes("barcode")) {
+              setErrors((p) => ({ ...p, barcode: "Product ID must be unique" }));
+              barcodeRef.current?.focus();
+            } else {
+              setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
+              skuRef.current?.focus();
+            }
           }
           throw error;
         }
@@ -367,8 +390,13 @@ function ProductsPage() {
           .insert({ ...payload, org_id: profile.org_id });
         if (error) {
           if (error.code === "23505") {
-            setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
-            skuRef.current?.focus();
+            if (error.message.includes("barcode")) {
+              setErrors((p) => ({ ...p, barcode: "Product ID must be unique" }));
+              barcodeRef.current?.focus();
+            } else {
+              setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
+              skuRef.current?.focus();
+            }
           }
           throw error;
         }
@@ -443,11 +471,15 @@ function ProductsPage() {
   const parsedImport = useMemo(() => {
     if (!importOpen || !importText.trim()) return null;
     const existingSkus = new Set((products.data ?? []).map((x) => x.sku.toLowerCase()));
+    const existingBarcodes = new Set(
+      (products.data ?? []).map((x) => (x.barcode ?? "").toLowerCase()).filter((b) => b !== ""),
+    );
     try {
       return parseProductsCsv(importText, {
         categories: categories.data ?? [],
         suppliers: suppliers.data ?? [],
         existingSkus,
+        existingBarcodes,
       });
     } catch {
       return null;
@@ -479,6 +511,7 @@ function ProductsPage() {
       const payload = items.map((it) => ({
         name: it.name,
         sku: it.sku,
+        barcode: it.barcode,
         category_id: resolveRefIds(it.category_name, catList ?? []),
         supplier_id: resolveRefIds(it.supplier_name, supList ?? []),
         unit_price: it.unit_price,
@@ -511,6 +544,7 @@ function ProductsPage() {
     setForm({
       name: p.name,
       sku: p.sku,
+      barcode: p.barcode ?? "",
       category_id: p.category_id ?? "",
       supplier_id: p.supplier_id ?? "",
       unit_price: String(p.unit_price),
@@ -527,6 +561,7 @@ function ProductsPage() {
       filtered.map((p) => ({
         name: p.name,
         sku: p.sku,
+        barcode: p.barcode ?? "",
         category: catMap.get(p.category_id ?? "") ?? "",
         supplier: supMap.get(p.supplier_id ?? "") ?? "",
         unit_price_inr: Number(p.unit_price).toFixed(2),
@@ -545,7 +580,7 @@ function ProductsPage() {
           <div className="relative w-full sm:w-64">
             <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search name or SKU"
+              placeholder="Search name, SKU or Product ID"
               className="pl-8 w-full"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -644,7 +679,7 @@ function ProductsPage() {
                   <Textarea
                     rows={6}
                     placeholder={
-                      'Or paste CSV here…\nname,sku,category,supplier,unit_price,quantity,reorder_threshold,description\n"Milk 1L","MILK-001","Dairy","",28.5,60,12,""'
+                      'Or paste CSV here…\nname,sku,barcode,category,supplier,unit_price,quantity,reorder_threshold,description\n"Milk 1L","MILK-001","890100001001","Dairy","",28.5,60,12,""'
                     }
                     value={importText}
                     onChange={(e) => setImportText(e.target.value)}
@@ -733,6 +768,33 @@ function ProductsPage() {
                     {errors.sku && (
                       <p id="p-sku-err" className="text-xs text-destructive">
                         {errors.sku}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="p-barcode">Product ID (barcode)</Label>
+                    <Input
+                      id="p-barcode"
+                      ref={barcodeRef}
+                      value={form.barcode}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="Scan or type barcode…"
+                      aria-invalid={!!errors.barcode}
+                      aria-describedby={errors.barcode ? "p-barcode-err" : undefined}
+                      onChange={(e) => setField("barcode", e.target.value)}
+                      onBlur={() =>
+                        setErrors((p) => ({ ...p, barcode: validateForm(form).barcode }))
+                      }
+                    />
+                    {errors.barcode ? (
+                      <p id="p-barcode-err" className="text-xs text-destructive">
+                        {errors.barcode}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Scannable ID used in billing. Optional, must be unique.
                       </p>
                     )}
                   </div>
@@ -904,6 +966,11 @@ function ProductsPage() {
                       <div className="font-mono text-xs text-muted-foreground truncate">
                         {p.sku}
                       </div>
+                      {p.barcode && (
+                        <div className="font-mono text-xs text-muted-foreground truncate">
+                          ID: {p.barcode}
+                        </div>
+                      )}
                     </div>
                     {s === "out" ? (
                       <Badge variant="destructive" className="shrink-0">
@@ -985,6 +1052,7 @@ function ProductsPage() {
               <TableRow>
                 <TableHead>Product</TableHead>
                 <TableHead>SKU</TableHead>
+                <TableHead>Product ID</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead className="text-right">Price</TableHead>
@@ -995,13 +1063,13 @@ function ProductsPage() {
             <TableBody>
               {products.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     No products match your filters.
                   </TableCell>
                 </TableRow>
@@ -1012,6 +1080,7 @@ function ProductsPage() {
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.name}</TableCell>
                       <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                      <TableCell className="font-mono text-xs">{p.barcode ?? "—"}</TableCell>
                       <TableCell>{catMap.get(p.category_id ?? "") ?? "—"}</TableCell>
                       <TableCell>{supMap.get(p.supplier_id ?? "") ?? "—"}</TableCell>
                       <TableCell className="text-right">
@@ -1100,7 +1169,8 @@ function ProductsPage() {
                 <SelectContent>
                   {(products.data ?? []).map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} · {p.sku} ({p.quantity} in stock)
+                      {p.name} · {p.sku}
+                      {p.barcode ? ` · ${p.barcode}` : ""} ({p.quantity} in stock)
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -345,7 +345,10 @@ function BillingPage() {
     if (!q) return products.data.filter((p) => p.quantity > 0);
     return products.data.filter(
       (p) =>
-        p.quantity > 0 && (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)),
+        p.quantity > 0 &&
+        (p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          (p.barcode ?? "").toLowerCase().includes(q)),
     );
   }, [products.data, search]);
 
@@ -497,9 +500,14 @@ function BillingPage() {
     setSearch("");
   };
 
-  // Exact, case-insensitive SKU match over the already-loaded product list.
-  const findProductByCode = (code: string): Product | undefined =>
-    products.data?.find((p) => p.sku.toLowerCase() === code.toLowerCase().trim());
+  // Exact, case-insensitive match on Product ID (barcode) first, then SKU.
+  const findProductByCode = (code: string): Product | undefined => {
+    const needle = code.toLowerCase().trim();
+    if (!needle) return undefined;
+    return products.data?.find(
+      (p) => (p.barcode ?? "").toLowerCase() === needle || p.sku.toLowerCase() === needle,
+    );
+  };
 
   const flashAdded = (productId: string) => {
     setHighlightId(productId);
@@ -630,7 +638,7 @@ function BillingPage() {
                   )}
                   <Input
                     ref={searchRef}
-                    placeholder="Search product by name or SKU…"
+                    placeholder="Search product by name, SKU or Product ID…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="h-11 min-w-0 flex-1 sm:h-9"
@@ -640,7 +648,7 @@ function BillingPage() {
                   <Input
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
-                    placeholder="Or type / paste item ID (barcode)…"
+                    placeholder="Or scan / type SKU or Product ID…"
                     inputMode="text"
                     autoCapitalize="characters"
                     autoCorrect="off"
@@ -681,6 +689,7 @@ function BillingPage() {
                         <div className="font-medium truncate">{product.name}</div>
                         <div className="font-mono text-xs text-muted-foreground truncate">
                           {product.sku}
+                          {product.barcode ? ` · ${product.barcode}` : ""}
                         </div>
                         <div className="flex items-center justify-between mt-2">
                           <span className="font-semibold">{formatINR(product.unit_price)}</span>
@@ -733,6 +742,7 @@ function BillingPage() {
                           <div className="font-medium truncate">{item.product.name}</div>
                           <div className="font-mono text-xs text-muted-foreground">
                             {item.product.sku}
+                            {item.product.barcode ? ` · ${item.product.barcode}` : ""}
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
