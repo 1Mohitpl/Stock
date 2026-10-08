@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Check, RefreshCw, UserPlus, Copy, Trash2, MoreHorizontal, Ban } from "lucide-react";
+import { Check, RefreshCw, UserPlus, Copy, Trash2, MoreHorizontal, Ban, UserX } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -106,7 +106,15 @@ interface InviteRow {
 function statusBadge(s: Status) {
   if (s === "approved") return <Badge>Approved</Badge>;
   if (s === "pending") return <Badge variant="secondary">Pending</Badge>;
-  return <Badge variant="destructive">Rejected</Badge>;
+  // Deliberately muted, not destructive: removal is history, not an error.
+  return (
+    <Badge
+      variant="outline"
+      className="border-muted-foreground/30 bg-muted/40 text-muted-foreground"
+    >
+      Removed
+    </Badge>
+  );
 }
 
 function MembersPage() {
@@ -274,6 +282,11 @@ function MembersPage() {
     if (roles.includes("admin")) return "admin";
     return "staff";
   };
+
+  // Removed members are kept as history but hidden from the active roster:
+  // they cannot be re-approved, only invited again.
+  const activeMembers = members.filter((m) => m.status !== "rejected");
+  const removedMembers = members.filter((m) => m.status === "rejected");
 
   return (
     <div className="space-y-4">
@@ -448,14 +461,14 @@ function MembersPage() {
               Loading…
             </CardContent>
           </Card>
-        ) : members.length === 0 ? (
+        ) : activeMembers.length === 0 ? (
           <Card>
             <CardContent className="p-4 text-center text-sm text-muted-foreground">
               No members yet.
             </CardContent>
           </Card>
         ) : (
-          members.map((m) => {
+          activeMembers.map((m) => {
             const isMe = m.id === me;
             const role = primaryRole(m.roles);
             const isSuper = m.roles.includes("super_admin");
@@ -540,14 +553,14 @@ function MembersPage() {
                     Loading…
                   </TableCell>
                 </TableRow>
-              ) : members.length === 0 ? (
+              ) : activeMembers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
                     No members yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                members.map((m) => {
+                activeMembers.map((m) => {
                   const isMe = m.id === me;
                   const role = primaryRole(m.roles);
                   const isSuper = m.roles.includes("super_admin");
@@ -612,6 +625,42 @@ function MembersPage() {
         </CardContent>
       </Card>
 
+      {removedMembers.length > 0 && (
+        <Card className="bg-muted/20">
+          <CardContent className="space-y-3 p-4">
+            <div>
+              <div className="text-sm font-medium text-muted-foreground">Removed members</div>
+              <p className="mt-0.5 text-xs text-muted-foreground/80">
+                These people lost access and cannot be re-approved. To bring one back, send a new
+                invite.
+              </p>
+            </div>
+            <ul className="space-y-2">
+              {removedMembers.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center gap-3 rounded-md border border-muted-foreground/15 bg-background/60 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-muted-foreground">
+                      {m.full_name || "—"}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground/70">{m.email}</div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-muted-foreground/25 capitalize text-muted-foreground/80"
+                  >
+                    {primaryRole(m.roles)}
+                  </Badge>
+                  <UserX className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <AlertDialog
         open={!!removeTarget}
         onOpenChange={(open) => {
@@ -623,7 +672,7 @@ function MembersPage() {
             <AlertDialogTitle>Remove member?</AlertDialogTitle>
             <AlertDialogDescription>
               {removeTarget &&
-                `${removeTarget.full_name || removeTarget.email} will immediately lose access to this organization. You can undo this later by approving them again.`}
+                `${removeTarget.full_name || removeTarget.email} will immediately lose access to this organization. They cannot be re-approved afterwards — to bring them back you must send a new invite.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
