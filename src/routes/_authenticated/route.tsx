@@ -34,7 +34,6 @@ import {
   Shield,
   Users,
   IndianRupee,
-  MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,9 +101,6 @@ const pageTitles: { title: string; url: string }[] = [
   { title: "Categories", url: "/categories" },
   { title: "Admin", url: "/admin" },
 ];
-
-/** How many destinations fit comfortably in a phone-width tab bar. */
-const MAX_MOBILE_TABS = 4;
 
 function AuthedLayout() {
   return (
@@ -196,10 +192,6 @@ function LayoutShell() {
     return dash ? [dash, ...visibleNavItems.filter((item) => item !== dash)] : visibleNavItems;
   })();
 
-  // Phone tab bar shows the top N; the rest live behind the "More" drawer.
-  const mobileTabs = navForRole.slice(0, MAX_MOBILE_TABS);
-  const overflow = navForRole.slice(MAX_MOBILE_TABS);
-
   const signOut = async () => {
     closeOnMobile();
     await supabase.auth.signOut();
@@ -284,8 +276,11 @@ function LayoutShell() {
           className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur-sm lg:hidden"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
-          <ul className="grid grid-cols-5">
-            {mobileTabs.map((item) => {
+          <ul
+            className="grid"
+            style={{ gridTemplateColumns: `repeat(${navForRole.length}, minmax(0, 1fr))` }}
+          >
+            {navForRole.map((item) => {
               const active = pathname === item.url;
               return (
                 <li key={item.url}>
@@ -303,18 +298,6 @@ function LayoutShell() {
                 </li>
               );
             })}
-            {overflow.length > 0 && (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setOpenMobile(true)}
-                  aria-label="More destinations"
-                  className="flex h-14 w-full items-center justify-center text-muted-foreground transition-colors"
-                >
-                  <MoreHorizontal className="h-6 w-6" />
-                </button>
-              </li>
-            )}
           </ul>
         </nav>
       )}
