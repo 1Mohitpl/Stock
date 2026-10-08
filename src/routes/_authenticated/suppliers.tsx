@@ -24,7 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, Mail } from "lucide-react";
 import type { Supplier } from "@/lib/inventory-types";
 import { useProfile } from "@/hooks/use-profile";
 
@@ -259,7 +259,76 @@ function SuppliersPage() {
           </DialogContent>
         </Dialog>
       </div>
-      <Card>
+      {/* Mobile card list — the 5-column table needs horizontal scrolling on a phone */}
+      <div className="grid gap-3 sm:hidden">
+        {isLoading ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+        ) : data.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No suppliers yet.</p>
+        ) : (
+          data.map((s) => (
+            <Card key={s.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{s.name}</div>
+                    {s.contact_name && (
+                      <div className="truncate text-sm text-muted-foreground">{s.contact_name}</div>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10"
+                      aria-label={`Edit supplier ${s.name}`}
+                      onClick={() => openEdit(s)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 text-destructive hover:text-destructive"
+                      aria-label={`Delete supplier ${s.name}`}
+                      onClick={() => {
+                        if (confirm(`Delete "${s.name}"?`)) del.mutate(s.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                {(s.phone || s.email) && (
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                    {s.phone && (
+                      <a
+                        href={`tel:${s.phone.replace(/\s+/g, "")}`}
+                        className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-foreground"
+                      >
+                        <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{s.phone}</span>
+                      </a>
+                    )}
+                    {s.email && (
+                      <a
+                        href={`mailto:${s.email}`}
+                        className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-foreground"
+                      >
+                        <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{s.email}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+                {s.address && <p className="text-sm text-muted-foreground">{s.address}</p>}
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Card className="hidden sm:block">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>

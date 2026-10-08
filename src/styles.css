@@ -195,6 +195,10 @@
 .pb-safe-nav {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
+/* Clears the fixed mobile tab bar (h-14) plus the home-indicator inset. */
+.pb-safe-tab {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
 
 /* ---- Signature gradient helpers ---- */
 

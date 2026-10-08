@@ -35,6 +35,7 @@ import {
   Shield,
   Users,
   Receipt,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -79,13 +80,16 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 const navItems = [
-  { title: "Billing", url: "/billing", icon: Receipt },
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Products", url: "/products", icon: Package },
-  { title: "Categories", url: "/categories", icon: Tags },
-  { title: "Suppliers", url: "/suppliers", icon: Truck },
-  { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
+  { title: "Billing", short: "Billing", url: "/billing", icon: Receipt },
+  { title: "Dashboard", short: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Products", short: "Products", url: "/products", icon: Package },
+  { title: "Categories", short: "Tags", url: "/categories", icon: Tags },
+  { title: "Suppliers", short: "Suppliers", url: "/suppliers", icon: Truck },
+  { title: "Transactions", short: "Activity", url: "/transactions", icon: ArrowLeftRight },
 ] as const;
+
+/** How many destinations fit comfortably in a phone-width tab bar. */
+const MAX_MOBILE_TABS = 4;
 
 function AuthedLayout() {
   return (
@@ -177,6 +181,10 @@ function LayoutShell() {
     return dash ? [dash, ...visibleNavItems.filter((item) => item !== dash)] : visibleNavItems;
   })();
 
+  // Phone tab bar shows the top N; the rest live behind the "More" drawer.
+  const mobileTabs = navForRole.slice(0, MAX_MOBILE_TABS);
+  const overflow = navForRole.slice(MAX_MOBILE_TABS);
+
   const signOut = async () => {
     closeOnMobile();
     await supabase.auth.signOut();
@@ -259,10 +267,51 @@ function LayoutShell() {
             {navItems.find((n) => n.url === pathname)?.title ?? "StockLine"}
           </h1>
         </header>
-        <main className="flex-1 p-3 pb-safe-nav sm:p-4 sm:pb-4 md:p-6 md:pb-6">
+        <main className="flex-1 p-3 pb-safe-tab sm:p-4 lg:p-6">
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile tab bar — the sidebar drawer stays reachable via the header trigger */}
+      {!isSuperAdmin && (
+        <nav
+          aria-label="Primary"
+          className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur-sm lg:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <ul className="grid grid-cols-5">
+            {mobileTabs.map((item) => {
+              const active = pathname === item.url;
+              return (
+                <li key={item.url}>
+                  <Link
+                    to={item.url}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex h-14 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium transition-colors ${
+                      active ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="w-full truncate text-center">{item.short}</span>
+                  </Link>
+                </li>
+              );
+            })}
+            {overflow.length > 0 && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setOpenMobile(true)}
+                  className="flex h-14 w-full flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium text-muted-foreground transition-colors"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                  <span className="w-full truncate text-center">More</span>
+                </button>
+              </li>
+            )}
+          </ul>
+        </nav>
+      )}
     </div>
   );
 }

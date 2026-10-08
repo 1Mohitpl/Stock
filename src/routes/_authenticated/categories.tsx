@@ -161,7 +161,51 @@ function CategoriesPage() {
           </DialogContent>
         </Dialog>
       </div>
-      <Card>
+      {/* Mobile card list — the table needs horizontal scrolling on a phone */}
+      <div className="grid gap-3 sm:hidden">
+        {isLoading ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+        ) : data.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No categories yet.</p>
+        ) : (
+          data.map((c) => (
+            <Card key={c.id}>
+              <CardContent className="flex items-start gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">{c.name}</div>
+                  {c.description && (
+                    <div className="mt-0.5 text-sm text-muted-foreground">{c.description}</div>
+                  )}
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10"
+                    aria-label={`Edit category ${c.name}`}
+                    onClick={() => openEdit(c)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 text-destructive hover:text-destructive"
+                    aria-label={`Delete category ${c.name}`}
+                    onClick={() => {
+                      if (confirm(`Delete "${c.name}"?`)) del.mutate(c.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      <Card className="hidden sm:block">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>

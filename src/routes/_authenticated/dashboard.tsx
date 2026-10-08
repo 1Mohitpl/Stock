@@ -986,7 +986,7 @@ function SyncStatus({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-6 w-6 shrink-0"
+        className="h-10 w-10 shrink-0 sm:h-6 sm:w-6"
         onClick={() => onRefresh()}
         disabled={isSyncing}
         aria-label="Refresh now"
