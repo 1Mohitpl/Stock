@@ -29,7 +29,6 @@ import {
   LayoutDashboard,
   Package,
   Truck,
-  ArrowLeftRight,
   LogOut,
   Shield,
   Users,
@@ -92,13 +91,13 @@ const navItems: NavItem[] = [
   { title: "Products", url: "/products", icon: Package },
   { title: "Team members", url: "/members", icon: Users, orgAdminOnly: true },
   { title: "Suppliers", url: "/suppliers", icon: Truck },
-  { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
 ];
 
 /** Off-menu routes still need a header title when reached directly. */
 const pageTitles: { title: string; url: string }[] = [
   ...navItems.map(({ title, url }) => ({ title, url })),
   { title: "Categories", url: "/categories" },
+  { title: "Transactions", url: "/transactions" },
   { title: "Admin", url: "/admin" },
 ];
 

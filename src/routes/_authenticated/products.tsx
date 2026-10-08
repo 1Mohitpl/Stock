@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo, useRef, useState, useEffect } from "react";
@@ -122,6 +122,7 @@ function withoutBarcode<T extends { barcode?: unknown }>(row: T): Omit<T, "barco
 
 function ProductsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: profile } = useProfile();
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
@@ -1362,6 +1363,16 @@ function ProductsPage() {
               </div>
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickTxnOpen(false);
+              navigate({ to: "/transactions" });
+            }}
+            className="w-full border-t pt-3 text-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            View transaction history
+          </button>
         </DialogContent>
       </Dialog>
 
