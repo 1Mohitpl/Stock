@@ -104,6 +104,22 @@ const emptyForm: Form = {
   description: "",
 };
 
+/** PostgREST PGRST204 — the `barcode` migration hasn't been applied to the DB yet. */
+function isMissingBarcodeColumn(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : String(error);
+  return message.includes("'barcode' column");
+}
+
+/** Drop the Product ID from a row so it can be saved before the migration runs. */
+function withoutBarcode<T extends { barcode?: unknown }>(row: T): Omit<T, "barcode"> {
+  const clone = { ...row };
+  delete clone.barcode;
+  return clone;
+}
+
 function ProductsPage() {
   const qc = useQueryClient();
   const { data: profile } = useProfile();
@@ -358,7 +374,17 @@ function ProductsPage() {
       const unit_price = Number(form.unit_price);
       const quantity = Number(form.quantity);
       const reorder_threshold = Number(form.reorder_threshold);
-      const payload = {
+      const payload: {
+        name: string;
+        sku: string;
+        barcode?: string | null;
+        category_id: string | null;
+        supplier_id: string | null;
+        unit_price: number;
+        quantity: number;
+        reorder_threshold: number;
+        description: string | null;
+      } = {
         name: form.name.trim(),
         sku: form.sku.trim(),
         barcode: form.barcode.trim() || null,
@@ -369,37 +395,42 @@ function ProductsPage() {
         reorder_threshold,
         description: form.description || null,
       };
-      if (editing) {
-        const { error } = await supabase.from("products").update(payload).eq("id", editing.id);
-        if (error) {
-          if (error.code === "23505") {
-            if (error.message.includes("barcode")) {
-              setErrors((p) => ({ ...p, barcode: "Product ID must be unique" }));
-              barcodeRef.current?.focus();
-            } else {
-              setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
-              skuRef.current?.focus();
-            }
+      const mapUniqueViolation = (error: { code: string; message: string }) => {
+        if (error.code === "23505") {
+          if (error.message.includes("barcode")) {
+            setErrors((p) => ({ ...p, barcode: "Product ID must be unique" }));
+            barcodeRef.current?.focus();
+          } else {
+            setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
+            skuRef.current?.focus();
           }
-          throw error;
         }
-      } else {
-        if (!profile?.org_id) throw new Error("No organization assigned");
-        const { error } = await supabase
-          .from("products")
-          .insert({ ...payload, org_id: profile.org_id });
-        if (error) {
-          if (error.code === "23505") {
-            if (error.message.includes("barcode")) {
-              setErrors((p) => ({ ...p, barcode: "Product ID must be unique" }));
-              barcodeRef.current?.focus();
-            } else {
-              setErrors((p) => ({ ...p, sku: "SKU must be unique" }));
-              skuRef.current?.focus();
-            }
-          }
-          throw error;
+        throw error;
+      };
+      const writeOnce = async (p: typeof payload) => {
+        if (editing) {
+          const { error } = await supabase.from("products").update(p).eq("id", editing.id);
+          if (error) mapUniqueViolation(error);
+        } else {
+          if (!profile?.org_id) throw new Error("No organization assigned");
+          const { error } = await supabase
+            .from("products")
+            .insert({ ...p, org_id: profile.org_id });
+          if (error) mapUniqueViolation(error);
         }
+      };
+      try {
+        await writeOnce(payload);
+      } catch (error) {
+        if (isMissingBarcodeColumn(error)) {
+          // Column not migrated yet — save everything except the Product ID.
+          await writeOnce(withoutBarcode(payload));
+          toast.warning(
+            "Saved without Product ID — apply the barcode migration, then edit to add it.",
+          );
+          return;
+        }
+        throw error;
       }
     },
     onSuccess: () => {
@@ -521,7 +552,18 @@ function ProductsPage() {
         org_id: profile.org_id!,
       }));
       const { error } = await supabase.from("products").insert(payload);
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (isMissingBarcodeColumn(error)) {
+          const retry = payload.map(withoutBarcode);
+          const { error: retryError } = await supabase.from("products").insert(retry);
+          if (retryError) throw new Error(retryError.message);
+          toast.warning(
+            "Imported without Product IDs — apply the barcode migration, then re-import that column.",
+          );
+          return payload.length;
+        }
+        throw new Error(error.message);
+      }
       return payload.length;
     },
     onSuccess: (count) => {
