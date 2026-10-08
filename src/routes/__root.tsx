@@ -180,7 +180,8 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <Toaster richColors position="top-right" />
+      {/* offset clears the h-14 sticky header; top-center reads better on phones. */}
+      <Toaster richColors position="top-center" offset={68} />
     </QueryClientProvider>
   );
 }

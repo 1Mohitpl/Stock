@@ -652,7 +652,7 @@ function ProductsPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-16 sm:pb-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
@@ -697,7 +697,7 @@ function ProductsPage() {
               variant="outline"
               size="sm"
               onClick={() => setQuickTxnOpen(true)}
-              className="shrink-0"
+              className="hidden shrink-0 sm:inline-flex"
             >
               <ArrowLeftRight className="h-4 w-4 mr-1" /> Quick transaction
             </Button>
@@ -1222,8 +1222,8 @@ function ProductsPage() {
         </Button>
       </div>
 
-      {/* Mobile transaction FAB */}
-      <div className="fixed bottom-4 right-4 z-50 sm:hidden">
+      {/* Mobile transaction FAB — lifted clear of the mobile tab bar */}
+      <div className="fixed right-4 z-50 fab-safe sm:hidden">
         <Button
           onClick={() => setQuickTxnOpen(true)}
           className="shadow-lg rounded-full h-14 px-4 gap-2"

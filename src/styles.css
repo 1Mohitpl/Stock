@@ -199,6 +199,10 @@
 .pb-safe-tab {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
 }
+/* Floats a FAB above the mobile tab bar instead of underneath it. */
+.fab-safe {
+  bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
 
 /* ---- Signature gradient helpers ---- */
 
