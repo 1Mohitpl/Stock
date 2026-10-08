@@ -542,7 +542,9 @@ function ProductsPage() {
         const { error } = await supabase
           .from("categories")
           .insert(newCatNames.map((name) => ({ name, org_id: profile.org_id! })));
-        if (error) throw new Error(`Creating categories failed: ${error.message}`);
+        // 23505 just means the category showed up concurrently — keep going.
+        if (error && error.code !== "23505")
+          throw new Error(`Creating categories failed: ${error.message}`);
       }
       const [{ data: catList }, { data: supList }] = await Promise.all([
         supabase.from("categories").select("*"),
@@ -572,7 +574,31 @@ function ProductsPage() {
               "supabase/migrations/20261008000000_add_products_barcode.sql, then set Product IDs.",
           );
         }
-        throw new Error(error.message);
+        if (error.code === "23505") {
+          // Name the offending rows so the user can fix the file, not guess.
+          const { data: clashes } = await supabase
+            .from("products")
+            .select("sku, barcode")
+            .is("deleted_at", null);
+          const live = new Set((clashes ?? []).map((r) => String(r.sku).toLowerCase()));
+          const liveBarcodes = new Set(
+            (clashes ?? []).map((r) => String(r.barcode ?? "").toLowerCase()),
+          );
+          const dupSkus = payload.filter((r) => live.has(r.sku.toLowerCase())).map((r) => r.sku);
+          const dupCodes = payload
+            .filter((r) => r.barcode && liveBarcodes.has(r.barcode.toLowerCase()))
+            .map((r) => r.barcode!);
+          const parts = [
+            dupSkus.length ? `duplicate SKU(s): ${[...new Set(dupSkus)].join(", ")}` : "",
+            dupCodes.length ? `duplicate Product ID(s): ${[...new Set(dupCodes)].join(", ")}` : "",
+          ].filter(Boolean);
+          throw new Error(
+            parts.length
+              ? `Import stopped — ${parts.join("; ")}. Remove or rename them and import again.`
+              : `Import stopped — duplicate value: ${error.message}`,
+          );
+        }
+        throw new Error(`Import failed: ${error.message}`);
       }
       return payload.length;
     },
