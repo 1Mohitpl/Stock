@@ -33,7 +33,7 @@ import {
   LogOut,
   Shield,
   Users,
-  Receipt,
+  IndianRupee,
   MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -88,7 +88,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { title: "Billing", url: "/billing", icon: Receipt },
+  { title: "Billing", url: "/billing", icon: IndianRupee },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, orgAdminOnly: true },
   { title: "Products", url: "/products", icon: Package },
   { title: "Team members", url: "/members", icon: Users, orgAdminOnly: true },
